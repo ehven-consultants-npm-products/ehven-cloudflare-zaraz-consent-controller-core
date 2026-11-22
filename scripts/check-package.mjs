@@ -14,7 +14,7 @@ for (const name of await readdir(new URL('src/', root))) {
 }
 const browserFiles = ['browser.mjs', 'policy.mjs', 'cookies.mjs', 'validation.mjs'];
 const bytes = (await Promise.all(browserFiles.map(name => stat(new URL(`src/${name}`, root))))).reduce((total, item) => total + item.size, 0);
-// This candidate's source graph budget excludes native service/provider payloads.
-// The original site's stricter acceptance must be measured separately during migration.
 assert.ok(bytes <= 20 * 1024, 'Browser source graph exceeds its declared 20 KiB package budget.');
-console.log(`Package entrypoints resolve; no providers or runtime dependencies; browser source graph ${bytes} bytes.`);
+const delivered = (await stat(new URL('dist/browser.mjs', root))).size;
+assert.ok(delivered <= 12 * 1024, 'Delivered first-party browser module exceeds 12 KiB.');
+console.log(`Package entrypoints resolve; no providers or runtime dependencies; browser source graph ${bytes} bytes, delivered module ${delivered} bytes.`);

@@ -4,6 +4,7 @@ import {cookieDescriptors, cookieExpiry} from './cookies.mjs';
 
 const installations = new WeakMap();
 const noop = () => {};
+export {scopeAllows} from './policy.mjs';
 function optionsFrom(input) {
   const options = jsonData(input, 'browser options', 65536);
   keys(options, ['enabled', 'origin', 'paths', 'privateRoots', 'purposeIds', 'cookieName', 'loaderTimeoutMs', 'reloadOnWithdrawal'], 'browser options');
@@ -25,10 +26,22 @@ function optionsFrom(input) {
 /** Explicit installation; importing this module has no browser or network effects. */
 export function installConsentController(input, environment = {}) {
   const options = optionsFrom(input);
-  const {window: win = globalThis.window, document: doc = win?.document, connectors = [], onState = noop, onChoices = noop,
+  const {window: win = globalThis.window, document: doc = win?.document, connectors = [], formContexts = [], onState = noop, onChoices = noop,
     settingsElement = doc?.querySelector('[data-consent-settings]'), statusElement = doc?.querySelector('[data-consent-status]')} = environment;
   if (!win || !doc || typeof onState !== 'function' || typeof onChoices !== 'function') fail('A browser environment and callable observers are required.');
   if (!Array.isArray(connectors) || connectors.length > 100) fail('connectors must be a bounded array.');
+  if (!Array.isArray(formContexts) || formContexts.length > 20) fail('formContexts must be a bounded array.');
+  const forms = formContexts.map(input => {
+    const form = jsonData(input);
+    keys(form, ['purpose', 'selector', 'consentField', 'pageField', 'marker'], 'form context');
+    if (!options.purposeIds.includes(form.purpose)) fail('Form context requires a configured purpose.');
+    if (typeof form.selector !== 'string' || !form.selector || form.selector.length > 512) fail('Invalid form selector.');
+    form.consentField ??= 'consent'; form.pageField ??= 'sourcePage'; form.marker ??= 'data-consent-context';
+    if (![form.consentField, form.pageField].every(value => /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(value))
+      || form.consentField === form.pageField || !/^data-[a-z][a-z0-9-]{0,63}$/.test(form.marker)) fail('Invalid form context fields.');
+    return form;
+  });
+  if (new Set(forms.map(form => form.marker)).size !== forms.length) fail('Form contexts require distinct ownership markers.');
   const ids = new Set();
   const hooks = connectors.map(connector => {
     keys(connector, ['id', 'purpose', 'cookies', 'onConsentChange', 'onDispose'], 'connector');
@@ -42,7 +55,7 @@ export function installConsentController(input, environment = {}) {
   });
   const fingerprint = JSON.stringify(options), current = installations.get(doc);
   if (current) {
-    if (current.fingerprint !== fingerprint || current.connectors.length !== connectors.length || current.connectors.some((connector, i) => connector !== connectors[i])
+    if (current.fingerprint !== fingerprint || current.forms !== JSON.stringify(forms) || current.connectors.length !== connectors.length || current.connectors.some((connector, i) => connector !== connectors[i])
       || current.onState !== onState || current.onChoices !== onChoices || current.settingsElement !== settingsElement || current.statusElement !== statusElement) fail('A different controller is installed. Dispose it before changing configuration.');
     return current.handle;
   }
@@ -110,7 +123,7 @@ export function installConsentController(input, environment = {}) {
     if (disposed || !installed || !eligible()) return false;
     try {const consent = api(); if (!consent) return false; consent.modal = true; return true;} catch {return false;}
   };
-  const listen = (target, event, callback) => { target.addEventListener(event, callback); listeners.push(() => target.removeEventListener(event, callback)); };
+  const listen = (target, event, callback, capture = false) => { target.addEventListener(event, callback, capture); listeners.push(() => target.removeEventListener(event, callback, capture)); };
   const handle = Object.freeze({
     getSnapshot: snapshot, refresh, openSettings,
     track(name, properties = {}, purpose) {
@@ -134,7 +147,7 @@ export function installConsentController(input, environment = {}) {
       // Existing SDKs and native consent are not erased. Reload to stop their code.
     },
   });
-  installations.set(doc, {handle, fingerprint, connectors: [...connectors], onState, onChoices, settingsElement, statusElement});
+  installations.set(doc, {handle, fingerprint, forms: JSON.stringify(forms), connectors: [...connectors], onState, onChoices, settingsElement, statusElement});
   if (!options.enabled || !options.purposeIds.length) {emit('idle'); return handle;}
   if (!eligible()) {emit('ineligible'); return handle;}
   // An independently loaded manager is outside this controller's ownership.
@@ -146,6 +159,21 @@ export function installConsentController(input, environment = {}) {
   listen(doc, 'visibilitychange', refresh); listen(win, 'pageshow', refresh);
   listen(win, 'hashchange', refresh); listen(win, 'popstate', refresh);
   if (settingsElement) listen(settingsElement, 'click', openSettings);
+  if (forms.length) listen(doc, 'submit', event => {
+    const form = event.target;
+    if (typeof form?.matches !== 'function') return;
+    refresh();
+    for (const binding of forms) {
+      let matches = false; try {matches = form.matches(binding.selector);} catch {emit('connector-error');}
+      if (!matches) continue;
+      for (const node of form.querySelectorAll(`[${binding.marker}]`)) node.remove();
+      if (disposed || !eligible() || state !== 'consent-ready' || choices[binding.purpose] !== true) continue;
+      for (const [name, value] of [[binding.consentField, 'granted'], [binding.pageField, options.origin + new URL(win.location.href).pathname]]) {
+        const input = doc.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value;
+        input.setAttribute(binding.marker, ''); form.append(input);
+      }
+    }
+  }, true);
   script = doc.createElement('script'); script.src = '/cdn-cgi/zaraz/i.js'; script.async = true;
   script.referrerPolicy = 'origin'; script.dataset.ehvenZarazCore = '';
   listen(script, 'load', () => {emit(api() ? 'consent-ready' : 'bootstrap-loaded'); refresh();});

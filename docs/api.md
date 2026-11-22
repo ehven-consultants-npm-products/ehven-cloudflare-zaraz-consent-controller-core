@@ -112,6 +112,14 @@ personal data within custom strings. Never pass raw query strings, form fields,
 visitor tokens or identity into generic events. Other native tools still enforce
 their own purpose assignments; dispatch is not a substitute for those mappings.
 
+`formContexts` optionally declares `{purpose, selector, consentField, pageField,
+marker}` bindings at installation. The shared capture listener adds only granted
+consent and the eligible origin/path to matching forms. Defaults are `consent`,
+`sourcePage`, and `data-consent-context`. Each binding needs a distinct ownership
+marker. Existing package-owned hidden fields are removed before reevaluation;
+ordinary form values are neither read nor exported. Essential submission is not
+prevented. The host still performs server-side consent, identity and abuse checks.
+
 ## Optional connectors
 
 Pass `connectors` at installation. A connector supplies `id`, `purpose`, optional
@@ -147,6 +155,16 @@ assertion supplied by the integrator, not automatic storage classification.
 Host routing, authentication, abuse prevention, provider identity validation and
 message delivery are separate responsibilities. Missing optional association must
 not block essential forms. Do not expose cookie-reading results through diagnostics.
+
+## Build and size
+
+The browser export is a bundled, minified ES module built with the pinned esbuild
+development dependency. Readable implementation remains in `src/`; no runtime
+dependency or source map is added. `npm run check` builds and verifies a 12 KiB
+uncompressed delivered-module limit and a separate 20 KiB readable source-graph
+limit. These limits exclude native CMP/provider transfers and do not establish
+LCP/CLS/INP acceptance. Installed-candidate and actual host measurements remain
+separate from source checks.
 
 ## Service references
 
