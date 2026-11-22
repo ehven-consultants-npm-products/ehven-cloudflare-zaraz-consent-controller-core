@@ -4,3 +4,4 @@ artifacts/
 *.tgz
 playwright-report/
 test-results/
+release/

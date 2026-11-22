@@ -17,6 +17,37 @@ function localized(value, language, label) {
 function refs(value, triggers, label) {
   if (!Array.isArray(value) || value.some(id => !own(triggers, id))) fail(`${label} must reference configured triggers.`);
 }
+function nativeRule(rule) {
+  record(rule, 'trigger rule'); identifier(rule.id, 'rule ID');
+  if (rule.id.startsWith('EhvenScope')) fail('EhvenScope rule IDs are reserved.');
+  if (rule.action === undefined) {
+    for (const field of ['match', 'op']) text(rule[field], 'rule field');
+    if (!['CONTAINS', 'EQUALS', 'STARTS_WITH', 'ENDS_WITH', 'MATCH_REGEX', 'NOT_MATCH_REGEX', 'GREATER_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN', 'LESS_THAN_OR_EQUAL'].includes(rule.op)
+      || typeof rule.value !== 'string') fail('Invalid native match rule.');
+    return;
+  }
+  const settings = record(rule.settings, 'native rule settings');
+  const integer = (value, minimum) => Number.isSafeInteger(value) && value >= minimum;
+  const selector = () => text(settings.selector, 'native selector');
+  switch (rule.action) {
+    case 'clickListener':
+      selector();
+      if (!['css', 'xpath'].includes(settings.type) || !integer(settings.waitForTags, 0)) fail('Invalid click listener settings.');
+      break;
+    case 'timer':
+      if (!integer(settings.interval, 50) || !integer(settings.limit, 0)) fail('Invalid timer settings.');
+      break;
+    case 'formSubmission':
+      selector(); if (typeof settings.validate !== 'boolean') fail('Invalid form submission settings.');
+      break;
+    case 'variableMatch':
+      text(settings.variable, 'native variable'); text(settings.match, 'native variable match');
+      break;
+    case 'scrollDepth': text(settings.positions, 'native scroll positions'); break;
+    case 'elementVisibility': selector(); break;
+    default: fail('Unsupported native trigger rule action.');
+  }
+}
 export function defineConfig(input) {
   // Copy only plain JSON data; functions/getters/prototype keys are never executed.
   const config = jsonData(input, 'configuration');
@@ -61,12 +92,7 @@ export function defineConfig(input) {
     for (const key of ['loadRules', 'excludeRules']) {
       trigger[key] ??= [];
       if (!Array.isArray(trigger[key]) || trigger[key].length > 100) fail('Trigger rules must be bounded arrays.');
-      for (const rule of trigger[key]) {
-        record(rule, 'trigger rule'); identifier(rule.id, 'rule ID');
-        if (rule.id.startsWith('EhvenScope')) fail('EhvenScope rule IDs are reserved.');
-        for (const field of ['match', 'op']) text(rule[field], 'rule field');
-        if (typeof rule.value !== 'string') fail('rule value must be a string.');
-      }
+      trigger[key].forEach(nativeRule);
       if (new Set(trigger[key].map(rule => rule.id)).size !== trigger[key].length) fail('Duplicate rule IDs.');
     }
   }

@@ -86,3 +86,27 @@ test('invalid identities, paths, data structures and unknown options are rejecte
 test('existing native state is protected from silent replacement', () => {
   for (const base of [{tools: {Foreign: {}}}, {triggers: {Foreign: {}}}]) assert.throws(() => buildZarazConfiguration(base, fixture()), /existing/);
 });
+test('native listener, timer, form, variable, scroll and visibility rules retain shared scope enforcement', () => {
+  const source = JSON.parse(JSON.stringify(fixture()));
+  const rules = [
+    {id: 'click', action: 'clickListener', settings: {selector: '#open', type: 'css', waitForTags: 500}},
+    {id: 'clock', action: 'timer', settings: {interval: 1000, limit: 1}},
+    {id: 'form', action: 'formSubmission', settings: {selector: '#inquiry', validate: true}},
+    {id: 'variable', action: 'variableMatch', settings: {variable: 'contentMode', match: 'open'}},
+    {id: 'scroll', action: 'scrollDepth', settings: {positions: '45%'}},
+    {id: 'visible', action: 'elementVisibility', settings: {selector: '#media'}},
+  ];
+  for (const rule of rules) source.triggers[rule.id] = {name: rule.id, loadRules: [rule], excludeRules: [rule]};
+  const plan = buildZarazConfiguration({}, source);
+  for (const rule of rules) {
+    assert.deepEqual(plan.triggers[rule.id].loadRules[0], rule);
+    assert.deepEqual(plan.triggers[rule.id].excludeRules, [rule]);
+    assert.deepEqual(plan.triggers[rule.id].loadRules.slice(1).map(value => value.id), ['EhvenScopeOrigin', 'EhvenScopePath', 'EhvenScopeQuery']);
+  }
+  for (const rule of [
+    {id: 'bad', action: 'timer', settings: {interval: 49, limit: 1}},
+    {id: 'bad', action: 'clickListener', settings: {selector: '#x', type: 'javascript', waitForTags: 0}},
+    {id: 'bad', action: 'formSubmission', settings: {selector: '#x', validate: 'true'}},
+    {id: 'bad', action: 'unknown', settings: {}},
+  ]) assert.throws(() => defineConfig({...source, triggers: {Bad: {name: 'Invalid', loadRules: [rule]}}}), TypeError);
+});

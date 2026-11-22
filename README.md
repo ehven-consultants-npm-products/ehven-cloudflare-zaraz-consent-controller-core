@@ -102,3 +102,5 @@ details or credentials. Support is best effort; no service level is implied.
 Before 1.0, minor versions may change contracts; patch versions are intended for
 compatible corrections. Published versions are immutable. Review native behavior
 after relevant service/configuration changes independently of npm updates.
+
+Support continued development through [Ehven Consultants](https://ehven.com/contact/).

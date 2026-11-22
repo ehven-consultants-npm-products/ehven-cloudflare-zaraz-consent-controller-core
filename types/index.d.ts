@@ -1,7 +1,13 @@
 export type JsonValue = null | boolean | number | string | JsonValue[] | {[key: string]: JsonValue};
 export type LocalizedText = string | Record<string, string>;
 export interface Scope {enabled: boolean; origin: string; paths: readonly string[]; privateRoots?: readonly string[];}
-export interface NativeRule {id: string; match: string; op: string; value: string;}
+export type NativeRule = {id: string; match: string; op: 'CONTAINS' | 'EQUALS' | 'STARTS_WITH' | 'ENDS_WITH' | 'MATCH_REGEX' | 'NOT_MATCH_REGEX' | 'GREATER_THAN' | 'GREATER_THAN_OR_EQUAL' | 'LESS_THAN' | 'LESS_THAN_OR_EQUAL'; value: string;}
+  | {id: string; action: 'clickListener'; settings: {selector: string; type: 'css' | 'xpath'; waitForTags: number}}
+  | {id: string; action: 'timer'; settings: {interval: number; limit: number}}
+  | {id: string; action: 'formSubmission'; settings: {selector: string; validate: boolean}}
+  | {id: string; action: 'variableMatch'; settings: {variable: string; match: string}}
+  | {id: string; action: 'scrollDepth'; settings: {positions: string}}
+  | {id: string; action: 'elementVisibility'; settings: {selector: string}};
 export interface NativeTrigger {name: string; system?: string; loadRules?: NativeRule[]; excludeRules?: NativeRule[];}
 export interface NativeAction {actionType: string; firingTriggers: string[]; blockingTriggers?: string[]; data?: Record<string, JsonValue>; [key: string]: JsonValue | undefined;}
 export interface NativeTool {
