@@ -172,3 +172,12 @@ separate from source checks.
 - [Consent API](https://developers.cloudflare.com/zaraz/consent-management/api/)
 - [Manual loading](https://developers.cloudflare.com/zaraz/advanced/load-zaraz-manually/)
 - [Properties](https://developers.cloudflare.com/zaraz/reference/properties-reference/)
+
+Native trigger rules support the documented match operators and `clickListener`,
+`timer`, `formSubmission`, `variableMatch`, `scrollDepth` and `elementVisibility`
+actions. Supply their native `settings` objects; core validates common shapes and
+bounds and adds the same origin/path/query gates to every firing trigger. It does
+not implement its own click/timer/form listeners or execute selector expressions.
+Native trigger activity, listener timing and vendor actions still require testing
+in your configured Zaraz deployment. Form submission listeners are opt-in native
+configuration; avoid enabling them when their data collection is unnecessary.
