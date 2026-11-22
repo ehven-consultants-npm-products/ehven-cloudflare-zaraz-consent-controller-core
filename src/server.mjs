@@ -1,6 +1,7 @@
 import {cookieName, fail, jsonData} from './validation.mjs';
 import {scopeAllows, requestPrivacyDenied, sameOriginPost} from './policy.mjs';
 import {cookieDescriptors, cookieExpiry} from './cookies.mjs';
+export {sameOriginPost, requestPrivacyDenied} from './policy.mjs';
 
 export function readRequestCookie(request, name) {
   cookieName(name);
