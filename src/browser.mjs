@@ -61,9 +61,13 @@ export function installConsentController(input, environment = {}) {
   }
   let disposed = false, state = 'idle', timer, script, installed = false, initialized = false, reloading = false;
   let choices = Object.fromEntries(options.purposeIds.map(id => [id, false]));
-  const listeners = [], originalHidden = settingsElement?.hidden, originalStatus = statusElement?.textContent;
+  const listeners = [], ownedInputs = new Set(), originalHidden = settingsElement?.hidden, originalStatus = statusElement?.textContent;
+  const clearInputs = () => {ownedInputs.forEach(node => node.remove()); ownedInputs.clear();};
+  const observe = (observer, value) => {
+    try {Promise.resolve(observer(value)).catch(noop);} catch { /* Observers never interrupt consent enforcement. */ }
+  };
   const snapshot = () => freeze({state, ready: state === 'consent-ready', choices: {...choices}});
-  const emit = next => { if (!disposed) {state = next; try {onState(snapshot());} catch { /* Observers never interrupt consent enforcement. */ }} };
+  const emit = next => { if (!disposed) {state = next; observe(onState, snapshot());} };
   const invoke = (hook, value) => {
     if (!hook) return;
     try {
@@ -90,10 +94,10 @@ export function installConsentController(input, environment = {}) {
       if (!granted) for (const cookie of connector.cookies) if (!cookie.httpOnly) doc.cookie = cookieExpiry(cookie);
       if (!initialized || previous[connector.purpose] !== granted) invoke(connector.onConsentChange, freeze({purpose: connector.purpose, granted, previousGranted: previous[connector.purpose], reason}));
     }
-    try {onChoices(freeze({...next}));} catch { /* Consumer observer only. */ }
+    observe(onChoices, freeze({...next}));
     const withdrawn = initialized && options.purposeIds.some(id => previous[id] && !next[id]);
     initialized = true;
-    if (withdrawn) reload();
+    if (withdrawn) {clearInputs(); reload();}
   };
   const refresh = () => {
     if (disposed || !installed) return snapshot();
@@ -139,6 +143,7 @@ export function installConsentController(input, environment = {}) {
     destroy() {
       if (disposed) return;
       win.clearTimeout(timer); listeners.forEach(remove => remove());
+      clearInputs();
       script?.remove();
       hooks.forEach(connector => invoke(connector.onDispose, undefined));
       if (settingsElement) settingsElement.hidden = originalHidden;
@@ -166,11 +171,11 @@ export function installConsentController(input, environment = {}) {
     for (const binding of forms) {
       let matches = false; try {matches = form.matches(binding.selector);} catch {emit('connector-error');}
       if (!matches) continue;
-      for (const node of form.querySelectorAll(`[${binding.marker}]`)) node.remove();
+      for (const node of form.querySelectorAll(`[${binding.marker}]`)) {node.remove(); ownedInputs.delete(node);}
       if (disposed || !eligible() || state !== 'consent-ready' || choices[binding.purpose] !== true) continue;
       for (const [name, value] of [[binding.consentField, 'granted'], [binding.pageField, options.origin + new URL(win.location.href).pathname]]) {
         const input = doc.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value;
-        input.setAttribute(binding.marker, ''); form.append(input);
+        input.setAttribute(binding.marker, ''); form.append(input); ownedInputs.add(input);
       }
     }
   }, true);
