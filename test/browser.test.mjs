@@ -91,6 +91,44 @@ test('destroy removes owned effects and restores host UI, without deleting conse
   assert.equal(page.win.zaraz.consent.get('media'), true); assert.equal(controller.track('Event', {}, 'media'), false);
   page.doc.dispatchEvent(new Event('zarazConsentChoicesUpdated')); assert.equal(page.reloads(), 0);
 });
+test('disposal hooks and state observers may dispose again without repeating teardown', () => {
+  const page = browserFixture(); let controller, disposals = 0, notifications = 0;
+  controller = installConsentController(publicOptions(), {...environment(page),
+    connectors: [{id: 'Example', purpose: 'media', onDispose() {disposals++; controller.destroy();}}],
+    onState(snapshot) {if (snapshot.state === 'disposed') {notifications++; controller.destroy();}},
+  });
+  page.native({media: true}); controller.destroy(); controller.destroy();
+  assert.equal(disposals, 1); assert.equal(notifications, 1);
+  assert.equal(controller.getSnapshot().state, 'disposed');
+  assert.equal(page.doc.scripts.length, 0); assert.equal(page.timers.size, 0);
+});
+test('disposal from a consent callback preserves restored UI and stops later callbacks', () => {
+  for (const source of ['connector', 'observer']) {
+    const page = browserFixture(); let controller, observed = 0, later = 0;
+    controller = installConsentController(publicOptions(), {...environment(page),
+      connectors: [
+        {id: 'First', purpose: 'media', onConsentChange() {if (source === 'connector') controller.destroy();}},
+        {id: 'Later', purpose: 'metrics', onConsentChange() {later++;}},
+      ],
+      onChoices() {observed++; if (source === 'observer') controller.destroy();},
+    });
+    page.native({media: true});
+    assert.equal(controller.getSnapshot().state, 'disposed');
+    assert.equal(page.settings.hidden, true); assert.equal(page.status.textContent, 'Original');
+    assert.equal(page.doc.scripts.length, 0);
+    assert.equal(observed, source === 'observer' ? 1 : 0);
+    assert.equal(later, source === 'observer' ? 1 : 0);
+  }
+});
+test('a host may cancel during startup before any loader or timer is created', () => {
+  const page = browserFixture(), options = publicOptions(); let env;
+  env = {...environment(page), onState(snapshot) {
+    if (snapshot.state === 'bootstrap-requested') installConsentController(options, env).destroy();
+  }};
+  const controller = installConsentController(options, env);
+  assert.equal(controller.getSnapshot().state, 'disposed');
+  assert.equal(page.doc.scripts.length, 0); assert.equal(page.timers.size, 0);
+});
 test('foreign native installations and invalid connector registrations are refused', () => {
   const page = browserFixture(); page.native({});
   const controller = installConsentController(publicOptions(), environment(page));
