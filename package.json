@@ -1,0 +1,25 @@
+{
+  "name": "@ehven/cloudflare-zaraz-consent-controller-core",
+  "version": "0.1.0",
+  "description": "Provider-neutral configuration and consent lifecycle for Cloudflare Zaraz.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {"node": ">=24"},
+  "exports": {
+    ".": {"types": "./types/index.d.ts", "import": "./src/index.mjs"},
+    "./browser": {"types": "./types/browser.d.ts", "import": "./src/browser.mjs"},
+    "./server": {"types": "./types/server.d.ts", "import": "./src/server.mjs"}
+  },
+  "files": ["src/*.mjs", "types/*.d.ts", "docs/api.md"],
+  "sideEffects": false,
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "test:types": "tsc --noEmit --strict --module nodenext --moduleResolution nodenext --target es2022 test/types.mts",
+    "test:browser": "node test/browser-check.mjs",
+    "check": "npm test && npm run test:types && node scripts/check-package.mjs"
+  },
+  "devDependencies": {"playwright": "1.62.1", "typescript": "5.9.3"},
+  "repository": {"type": "git", "url": "git+https://github.com/ehven-consultants-npm-products/ehven-cloudflare-zaraz-consent-controller-core.git"},
+  "bugs": {"url": "https://github.com/ehven-consultants-npm-products/ehven-cloudflare-zaraz-consent-controller-core/issues"},
+  "keywords": ["cloudflare", "zaraz", "consent", "privacy", "integrations"]
+}
