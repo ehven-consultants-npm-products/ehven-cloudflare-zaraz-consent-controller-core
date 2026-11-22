@@ -60,6 +60,7 @@ for (const [engine, launcher] of Object.entries({chromium, firefox, webkit})) {
         }
         await page.evaluate(() => {window.controller.destroy(); window.controller.destroy();});
         assert.equal(await page.locator('script[data-ehven-zaraz-core]').count(), 0);
+        assert.equal(await page.locator('[data-consent-context]').count(), 0);
         assert.equal(await page.locator('[data-consent-settings]').isHidden(), true);
         assert.equal(traffic.every(url => new URL(url).origin === options.origin), true);
       } finally {await context.close();}

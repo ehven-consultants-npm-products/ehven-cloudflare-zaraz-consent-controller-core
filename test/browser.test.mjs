@@ -71,6 +71,17 @@ test('observer errors cannot interrupt enforcement; diagnostics contain no excep
   const choices = {media: true}; page.native(choices); choices.media = false; page.doc.dispatchEvent(new Event('zarazConsentChoicesUpdated'));
   assert.equal(page.reloads(), 1); assert.equal(JSON.stringify(states).includes('private details'), false); controller.destroy();
 });
+test('rejected asynchronous observers remain isolated during consent updates and disposal', async () => {
+  const page = browserFixture();
+  const controller = installConsentController(publicOptions(), {...environment(page),
+    onState: async () => {throw Error('private observer details');},
+    onChoices: async () => {throw Error('private observer details');},
+  });
+  const choices = {media: true}; page.native(choices); choices.media = false;
+  page.doc.dispatchEvent(new Event('zarazConsentChoicesUpdated'));
+  assert.equal(page.reloads(), 1); controller.destroy();
+  await new Promise(resolve => setImmediate(resolve));
+});
 test('destroy removes owned effects and restores host UI, without deleting consent', () => {
   const page = browserFixture(); let disposed = 0;
   const controller = installConsentController(publicOptions(), {...environment(page), connectors: [{id: 'Example', purpose: 'media', onDispose: () => {disposed++;}}]});
@@ -99,5 +110,7 @@ test('shared form binding adds only declared consent/source context and removes 
   assert.deepEqual(nodes.map(node => [node.name, node.value]), [['consent', 'granted'], ['sourcePage', 'https://fixture.example/']]);
   submit(); assert.equal(nodes.length, 2);
   choices.media = false; page.doc.dispatchEvent(new Event('zarazConsentChoicesUpdated')); submit(); assert.equal(nodes.length, 0);
-  controller.destroy(); choices.media = true; submit(); assert.equal(nodes.length, 0);
+  choices.media = true; page.doc.dispatchEvent(new Event('zarazConsentChoicesUpdated')); submit(); assert.equal(nodes.length, 2);
+  controller.destroy(); assert.equal(nodes.length, 0);
+  submit(); assert.equal(nodes.length, 0);
 });
