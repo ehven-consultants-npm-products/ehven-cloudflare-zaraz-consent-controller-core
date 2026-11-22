@@ -86,17 +86,19 @@ export function installConsentController(input, environment = {}) {
     if (!reloading && options.reloadOnWithdrawal) { reloading = true; win.location.reload(); }
   };
   const update = (next, reason) => {
+    if (disposed) return;
     const previous = choices; choices = next;
-    const changed = !initialized || options.purposeIds.some(id => previous[id] !== next[id]);
+    const first = !initialized, changed = first || options.purposeIds.some(id => previous[id] !== next[id]);
     if (!changed) return;
+    const withdrawn = initialized && options.purposeIds.some(id => previous[id] && !next[id]);
+    initialized = true;
     for (const connector of hooks) {
       const granted = next[connector.purpose];
       if (!granted) for (const cookie of connector.cookies) if (!cookie.httpOnly) doc.cookie = cookieExpiry(cookie);
-      if (!initialized || previous[connector.purpose] !== granted) invoke(connector.onConsentChange, freeze({purpose: connector.purpose, granted, previousGranted: previous[connector.purpose], reason}));
+      if (first || previous[connector.purpose] !== granted) invoke(connector.onConsentChange, freeze({purpose: connector.purpose, granted, previousGranted: previous[connector.purpose], reason}));
+      if (disposed) return;
     }
     observe(onChoices, freeze({...next}));
-    const withdrawn = initialized && options.purposeIds.some(id => previous[id] && !next[id]);
-    initialized = true;
     if (withdrawn) {clearInputs(); reload();}
   };
   const refresh = () => {
@@ -114,6 +116,7 @@ export function installConsentController(input, environment = {}) {
       const next = Object.fromEntries(options.purposeIds.map(id => [id, consent.get(id) === true]));
       win.clearTimeout(timer);
       update(next, 'native-consent');
+      if (disposed) return snapshot();
       if (settingsElement) settingsElement.hidden = false;
       if (statusElement) statusElement.textContent = '';
       emit('consent-ready');
@@ -142,13 +145,14 @@ export function installConsentController(input, environment = {}) {
     },
     destroy() {
       if (disposed) return;
+      disposed = true;
       win.clearTimeout(timer); listeners.forEach(remove => remove());
       clearInputs();
       script?.remove();
       hooks.forEach(connector => invoke(connector.onDispose, undefined));
       if (settingsElement) settingsElement.hidden = originalHidden;
       if (statusElement) statusElement.textContent = originalStatus;
-      emit('disposed'); disposed = true; installations.delete(doc);
+      state = 'disposed'; installations.delete(doc); observe(onState, snapshot());
       // Existing SDKs and native consent are not erased. Reload to stop their code.
     },
   });
@@ -188,6 +192,7 @@ export function installConsentController(input, environment = {}) {
     emit('bootstrap-error');
   });
   emit('bootstrap-requested');
+  if (disposed) return handle;
   timer = win.setTimeout(() => {if (!disposed && !api()) emit('consent-api-timeout');}, options.loaderTimeoutMs);
   doc.head.append(script); refresh();
   return handle;
