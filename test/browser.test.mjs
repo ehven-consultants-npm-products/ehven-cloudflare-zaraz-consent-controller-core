@@ -88,3 +88,16 @@ test('foreign native installations and invalid connector registrations are refus
     const fresh = browserFixture(); assert.throws(() => installConsentController(publicOptions(), {...environment(fresh), connectors}), TypeError);
   }
 });
+test('shared form binding adds only declared consent/source context and removes it after denial', () => {
+  const page = browserFixture(), nodes = [];
+  const form = {matches: selector => selector === 'form[data-association]', querySelectorAll: () => [...nodes],
+    append(node) {nodes.push(node); node.remove = () => nodes.splice(nodes.indexOf(node), 1);}};
+  const submit = () => {const event = new Event('submit', {cancelable: true}); Object.defineProperty(event, 'target', {value: form}); page.doc.dispatchEvent(event); assert.equal(event.defaultPrevented, false);};
+  const controller = installConsentController(publicOptions(), {...environment(page), formContexts: [{purpose: 'media', selector: 'form[data-association]'}]});
+  const choices = {media: false}; page.native(choices); submit(); assert.equal(nodes.length, 0);
+  choices.media = true; page.doc.dispatchEvent(new Event('zarazConsentChoicesUpdated')); submit();
+  assert.deepEqual(nodes.map(node => [node.name, node.value]), [['consent', 'granted'], ['sourcePage', 'https://fixture.example/']]);
+  submit(); assert.equal(nodes.length, 2);
+  choices.media = false; page.doc.dispatchEvent(new Event('zarazConsentChoicesUpdated')); submit(); assert.equal(nodes.length, 0);
+  controller.destroy(); choices.media = true; submit(); assert.equal(nodes.length, 0);
+});

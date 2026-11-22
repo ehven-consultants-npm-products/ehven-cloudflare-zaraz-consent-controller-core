@@ -16,6 +16,7 @@ export const publicOptions = () => browserOptions(fixture());
 class Element extends EventTarget {
   constructor(tag = 'div') {super(); this.tagName = tag; this.dataset = {}; this.hidden = true; this.textContent = 'Original';}
   remove() {if (this.owner) this.owner.scripts = this.owner.scripts.filter(element => element !== this);}
+  setAttribute(name, value) {(this.attributes ??= {})[name] = value;}
 }
 export function browserFixture({url = 'https://fixture.example/', referrer = '', privacy = {}} = {}) {
   const win = new EventTarget(), doc = new EventTarget();
