@@ -5,8 +5,7 @@ tools are supplied as declarative configuration. Optional connectors supply
 provider recipes or custom behavior; framework adapters supply rendering/bindings.
 No provider is bundled or activated. No runtime npm dependencies.
 
-This is a development candidate. It has not been published to npm. The intended
-installation command after publication is:
+Install the core in the host project:
 
 ```sh
 npm install @ehven/cloudflare-zaraz-consent-controller-core
